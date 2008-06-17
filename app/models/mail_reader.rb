@@ -91,9 +91,9 @@ class MailReader < ActionMailer::Base
       @@from_email = from_email_address(imap, message_id)
       MailReader.receive(msg)          
       #Mark message as deleted and it will be removed from storage when user session closd
-####              imap.store(message_id, "+FLAGS", [:Deleted])
-            # tell server to permanently remove all messages flagged as :Deleted
-####            imap.expunge()
+      imap.store(message_id, "+FLAGS", [:Deleted])
+      # tell server to permanently remove all messages flagged as :Deleted
+      imap.expunge()
     end
   end
   
