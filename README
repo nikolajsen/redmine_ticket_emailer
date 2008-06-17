@@ -1,3 +1,22 @@
 = Ticket emailer plugin for Redmine
 
 A plugin to allow users to email new tickets / issues to Redmine's issue tracking system on a per-project level.
+
+== Installation
+
+1. Copy the `config/emailer.yml` to your `RAILS_ROOT/config`
+2. Edit the copied file to point to your IMAP server
+
+== Submitting an issue
+
+In order to submit an issue, the Project keyword needs to be correct and the sender must be a member of the project (based on email address).
+
+== Supported keywords
+
+* Project => My Project Name
+* Status => Resolved
+* Priority => Urgent
+* Tracker => Feature
+* Category => My category
+* Description (allows multiple lines) => I want this new feature...
+

@@ -1,5 +1,6 @@
 # TODOs:
 # * Update existing issues
+# * Refactor
 class MailReader < ActionMailer::Base
 
   def receive(email)
