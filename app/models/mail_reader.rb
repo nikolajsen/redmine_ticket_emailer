@@ -5,7 +5,6 @@
 # * Add Tracker
 # * Add Priority
 # * Add Categry
-# * Allow description block
 class MailReader < ActionMailer::Base
 
   def receive(email)         
@@ -23,7 +22,7 @@ class MailReader < ActionMailer::Base
         
     issue = Issue.create(
         :subject => email.subject,
-        :description => email.body,
+        :description => block_match(email.body, "Description", ''),
         :priority_id => 3,
         :project_id => @@project.id,
         :tracker_id => 3,
@@ -99,4 +98,23 @@ class MailReader < ActionMailer::Base
     host    = env.from[0].host
     from = "#{mailbox}@#{host}"
   end
+  
+  private
+  
+  # Taken from bugmail.rb
+  def match(msg, regex, default)
+    if((msg =~ regex))
+      return $1
+    end
+    return default
+  end
+
+  def line_match(msg, label, default)
+    return match(msg, /^#{label}:[ \t]*(.*)$/, default)
+  end
+
+  def block_match(msg, label, default)
+    return match(msg, /^#{label}:[ \t]*(.*)$/m, default)
+  end
+
 end
