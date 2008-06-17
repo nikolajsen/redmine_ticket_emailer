@@ -52,7 +52,7 @@ class MailReader < ActionMailer::Base
         :priority => priority,
         :project_id => @@project.id,
         :tracker => tracker,
-        :author_id => author_id,
+        :author => author,
         :category => category,
         :status => status
     )
@@ -62,7 +62,7 @@ class MailReader < ActionMailer::Base
             Attachment.create(:container => issue, 
                                   :file => attachment,
                                   :description => "",
-                                  :author_id => 2)
+                                  :author => author)
         end
     end
 
