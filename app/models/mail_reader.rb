@@ -1,7 +1,6 @@
 # TODOs:
 # * Update existing issues
 # * Don't require project specific setup
-# * Add Status
 # * Add Tracker
 # * Add Priority
 # * Add Categry
@@ -19,7 +18,8 @@ class MailReader < ActionMailer::Base
     else
         author_id = author.id
     end
-        
+    
+    status = IssueStatus.find_by_name(line_match(email.body, "Status", '')) || IssueStatus.default
     # TODO: Description is greedy and will take other keywords after itself.  e.g.
     #
     #   Description:
@@ -35,7 +35,7 @@ class MailReader < ActionMailer::Base
         :project_id => @@project.id,
         :tracker_id => 3,
         :author_id => author_id,
-        :status_id => 1        
+        :status => status
     )
     
     if email.has_attachments?
@@ -112,7 +112,7 @@ class MailReader < ActionMailer::Base
   # Taken from bugmail.rb
   def match(msg, regex, default)
     if((msg =~ regex))
-      return $1
+      return $1.strip
     end
     return default
   end
