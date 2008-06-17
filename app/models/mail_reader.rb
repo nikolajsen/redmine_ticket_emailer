@@ -59,14 +59,15 @@ class MailReader < ActionMailer::Base
             imap.select(@@config[:email_folder])  
                      
             imap.search(['ALL']).each do |message_id|
+              RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
               msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
               @@from_email = from_email_address(imap, message_id)
               MailReader.receive(msg)          
               #Mark message as deleted and it will be removed from storage when user session closd
-              imap.store(message_id, "+FLAGS", [:Deleted])
+####              imap.store(message_id, "+FLAGS", [:Deleted])
             end
             # tell server to permanently remove all messages flagged as :Deleted
-            imap.expunge()
+####            imap.expunge()
         end
     end
   end
