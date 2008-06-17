@@ -2,7 +2,6 @@
 # * Update existing issues
 # * Don't require project specific setup
 # * Add Tracker
-# * Add Priority
 # * Add Categry
 class MailReader < ActionMailer::Base
 
@@ -20,6 +19,14 @@ class MailReader < ActionMailer::Base
     end
     
     status = IssueStatus.find_by_name(line_match(email.body, "Status", '')) || IssueStatus.default
+    
+    # TODO: Refactor priorities
+    priorities = Enumeration.get_values('IPRI')
+    @DEFAULT_PRIORITY = priorities[0]
+    @PRIORITY_MAPPING = {}
+    priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
+    priority = @PRIORITY_MAPPING[line_match(email.body, "Priority", '')] || @DEFAULT_PRIORITY
+    
     # TODO: Description is greedy and will take other keywords after itself.  e.g.
     #
     #   Description:
@@ -31,7 +38,7 @@ class MailReader < ActionMailer::Base
     issue = Issue.create(
         :subject => line_match(email.body, "Subject", email.subject),
         :description => block_match(email.body, "Description", ''),
-        :priority_id => 3,
+        :priority => priority,
         :project_id => @@project.id,
         :tracker_id => 3,
         :author_id => author_id,
