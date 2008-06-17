@@ -13,15 +13,13 @@ class MailReader < ActionMailer::Base
     end
     
     # If the email exists for a user in the current project,
-    # use that user as the author.  Otherwise, use the first
-    # user that is returned from the Member model
+    # use that user as the author.  Otherwise, abort
     author = User.find_by_mail @@from_email, :select=>"users.id", :joins=>"inner join members on members.user_id = users.id",
                               :conditions=>["members.project_id=?", @@project.id]
     
     if author.nil?
-       author_id = (Member.find_by_project_id @@project.id).id
-    else
-        author_id = author.id
+      RAILS_DEFAULT_LOGGER.debug "Author not found with the email of #{from_email}"
+      return false      
     end
     
     status = IssueStatus.find_by_name(line_match(email.body, "Status", '')) || IssueStatus.default
