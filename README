@@ -22,5 +22,6 @@ In order to submit an issue, the Project keyword needs to be correct and the sen
 
 == Credits
 
-mully (http://github.com/mully)
-Eric Davis (http://www.littlestreamsoftware.com)
+mully (http://github.com/mully) - Author of ticker_emailer
+Carl Nygard (https://redmine.shaneandpeter.com/issues/show/40) - Author of bugmail.rb
+Eric Davis (http://www.littlestreamsoftware.com) - Merged ticket_emailer plugin with bugmail.rb
