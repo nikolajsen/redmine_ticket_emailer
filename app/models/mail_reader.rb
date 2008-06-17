@@ -1,7 +1,6 @@
 # TODOs:
 # * Update existing issues
 # * Don't require project specific setup
-# * Add Categry
 class MailReader < ActionMailer::Base
 
   def receive(email)         
@@ -29,6 +28,9 @@ class MailReader < ActionMailer::Base
     # Tracker
     @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
     tracker = @@project.trackers.find_by_name(line_match(email.body, "Tracker", 'Bug')) || @DEFAULT_TRACKER
+
+    category = @@project.issue_categories.find_by_name(line_match(email.body, "Category", ''))
+
     
     # TODO: Description is greedy and will take other keywords after itself.  e.g.
     #
@@ -45,6 +47,7 @@ class MailReader < ActionMailer::Base
         :project_id => @@project.id,
         :tracker => tracker,
         :author_id => author_id,
+        :category => category,
         :status => status
     )
     
