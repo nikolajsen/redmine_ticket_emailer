@@ -3,7 +3,16 @@
 # * Don't require project specific setup
 class MailReader < ActionMailer::Base
 
-  def receive(email)         
+  def receive(email)
+    # find project
+    project_name = line_match(email.body, "Project", '')
+    @@project = Project.find_by_name project_name, :include => :enabled_modules , :conditions => "enabled_modules.name='ticket_emailer'"
+    
+    if @@project.nil?
+      RAILS_DEFAULT_LOGGER.debug "Project not found with a name of #{project_name} with the ticket_emailer enabled"
+      return false
+    end
+    
     # If the email exists for a user in the current project,
     # use that user as the author.  Otherwise, use the first
     # user that is returned from the Member model
@@ -74,11 +83,6 @@ class MailReader < ActionMailer::Base
      
      # Cycle through all of the projects created in the yaml file
      YAML.load_file(@@config_path).keys.each do |project_name|
-     
-        #Find the project based off the name in the YAML if the emailer is enabled in Redmine
-        @@project = Project.find_by_name project_name, :include=>:enabled_modules , :conditions=>"enabled_modules.name='ticket_emailer'"
-
-        unless @@project.nil?
             @@config = YAML.load_file(@@config_path)[project_name].symbolize_keys
                  
             imap = Net::IMAP.new(@@config[:email_server], port=@@config[:email_port], usessl=@@config[:use_ssl])
@@ -93,7 +97,6 @@ class MailReader < ActionMailer::Base
               MailReader.receive(msg)          
               #Mark message as deleted and it will be removed from storage when user session closd
 ####              imap.store(message_id, "+FLAGS", [:Deleted])
-            end
             # tell server to permanently remove all messages flagged as :Deleted
 ####            imap.expunge()
         end
