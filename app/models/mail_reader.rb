@@ -1,7 +1,6 @@
 # TODOs:
 # * Update existing issues
 # * Don't require project specific setup
-# * Add Tracker
 # * Add Categry
 class MailReader < ActionMailer::Base
 
@@ -27,6 +26,10 @@ class MailReader < ActionMailer::Base
     priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
     priority = @PRIORITY_MAPPING[line_match(email.body, "Priority", '')] || @DEFAULT_PRIORITY
     
+    # Tracker
+    @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
+    tracker = @@project.trackers.find_by_name(line_match(email.body, "Tracker", 'Bug')) || @DEFAULT_TRACKER
+    
     # TODO: Description is greedy and will take other keywords after itself.  e.g.
     #
     #   Description:
@@ -40,7 +43,7 @@ class MailReader < ActionMailer::Base
         :description => block_match(email.body, "Description", ''),
         :priority => priority,
         :project_id => @@project.id,
-        :tracker_id => 3,
+        :tracker => tracker,
         :author_id => author_id,
         :status => status
     )
