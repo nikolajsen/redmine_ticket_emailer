@@ -1,3 +1,11 @@
+# TODOs:
+# * Update existing issues
+# * Don't require project specific setup
+# * Add Status
+# * Add Tracker
+# * Add Priority
+# * Add Categry
+# * Allow description block
 class MailReader < ActionMailer::Base
 
   def receive(email)         
