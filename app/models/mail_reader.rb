@@ -20,6 +20,14 @@ class MailReader < ActionMailer::Base
         author_id = author.id
     end
         
+    # TODO: Description is greedy and will take other keywords after itself.  e.g.
+    #
+    #   Description:
+    #   Stage 2
+    #   Descrip is here
+    #   
+    #   Subject: Issue subject
+    # #=> Description has 'Subject' in it
     issue = Issue.create(
         :subject => line_match(email.body, "Subject", email.subject),
         :description => block_match(email.body, "Description", ''),
