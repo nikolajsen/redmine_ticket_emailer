@@ -21,7 +21,7 @@ class MailReader < ActionMailer::Base
     end
         
     issue = Issue.create(
-        :subject => email.subject,
+        :subject => line_match(email.body, "Subject", email.subject),
         :description => block_match(email.body, "Description", ''),
         :priority_id => 3,
         :project_id => @@project.id,
