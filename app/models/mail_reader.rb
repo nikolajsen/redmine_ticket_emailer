@@ -81,25 +81,22 @@ class MailReader < ActionMailer::Base
 
      @@config_path = (RAILS_ROOT + '/config/emailer.yml')
      
-     # Cycle through all of the projects created in the yaml file
-     YAML.load_file(@@config_path).keys.each do |project_name|
-            @@config = YAML.load_file(@@config_path)[project_name].symbolize_keys
-                 
-            imap = Net::IMAP.new(@@config[:email_server], port=@@config[:email_port], usessl=@@config[:use_ssl])
+    # Load the configuration file
+    @@config = YAML.load_file(@@config_path).symbolize_keys
+    imap = Net::IMAP.new(@@config[:email_server], port=@@config[:email_port], usessl=@@config[:use_ssl])
              
-            imap.login(@@config[:email_login], @@config[:email_password])
-            imap.select(@@config[:email_folder])  
+    imap.login(@@config[:email_login], @@config[:email_password])
+    imap.select(@@config[:email_folder])  
                      
-            imap.search(['ALL']).each do |message_id|
-              RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
-              msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
-              @@from_email = from_email_address(imap, message_id)
-              MailReader.receive(msg)          
-              #Mark message as deleted and it will be removed from storage when user session closd
+    imap.search(['ALL']).each do |message_id|
+      RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
+      msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
+      @@from_email = from_email_address(imap, message_id)
+      MailReader.receive(msg)          
+      #Mark message as deleted and it will be removed from storage when user session closd
 ####              imap.store(message_id, "+FLAGS", [:Deleted])
             # tell server to permanently remove all messages flagged as :Deleted
 ####            imap.expunge()
-        end
     end
   end
   
