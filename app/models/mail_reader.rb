@@ -73,7 +73,7 @@ class MailReader < ActionMailer::Base
     else
       #using the issue found from subject, create a new note for the issue
       ic = Iconv.new('UTF-8', 'UTF-8')
-      RAILS_DEFAULT_LOGGER.debug "Issue ##{issue.id} exists"
+      RAILS_DEFAULT_LOGGER.debug "Issue ##{issue.id} exists adding comment"
       journal = Journal.new(:notes => ic.iconv(email.body.split(/<(HTML|html)/)[0]),
                      :journalized => issue,
                      :user => author);
