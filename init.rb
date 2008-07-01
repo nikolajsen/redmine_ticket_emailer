@@ -22,9 +22,9 @@ RAILS_DEFAULT_LOGGER.info 'Ticket Emailer Plugin'
 # Redmine ticket emailer plugin
 Redmine::Plugin.register :redmine_ticket_emailer do
   name 'Ticket Emailer'
-  author 'Jim Mulholland'
+  author 'Jim Mulholland, Ben Allen'
   description 'A plugin to allow users to email tickets to Redmine.'
-  version '0.1.0'
+  version '0.1.1'
 
   # This plugin adds a project module
   # It can be enabled/disabled at project level (Project settings -> Modules)

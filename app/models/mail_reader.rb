@@ -38,25 +38,51 @@ class MailReader < ActionMailer::Base
 
     category = @@project.issue_categories.find_by_name(line_match(email.body, "Category", ''))
 
+    #check if the email subject includes an issue id
+    issue_id = email.subject.scan(/#(\d+)/).flatten
+ 
+    #if issue_id found in email subject then try to find corresponding issue
+    unless issue_id.empty?
+      begin
+        issue = Issue.find(issue_id[0])
+      rescue
+        RAILS_DEFAULT_LOGGER.debug "Issue #{issue_id[0]} not found"
+      end
+    end
     
-    # TODO: Description is greedy and will take other keywords after itself.  e.g.
-    #
-    #   Description:
-    #   Stage 2
-    #   Descrip is here
-    #   
-    #   Subject: Issue subject
-    # #=> Description has 'Subject' in it
-    issue = Issue.create(
-        :subject => line_match(email.body, "Subject", email.subject),
-        :description => block_match(email.body, "Description", ''),
-        :priority => priority,
-        :project_id => @@project.id,
-        :tracker => tracker,
-        :author => author,
-        :category => category,
-        :status => status
-    )
+    if issue.nil?
+       RAILS_DEFAULT_LOGGER.debug "Creating new issue"
+      # TODO: Description is greedy and will take other keywords after itself.  e.g.
+      #
+      #   Description:
+      #   Stage 2
+      #   Descrip is here
+      #   
+      #   Subject: Issue subject
+      # #=> Description has 'Subject' in it
+      issue = Issue.create(
+          :subject => line_match(email.body, "Subject", email.subject),
+          :description => block_match(email.body, "Description", ''),
+          :priority => priority,
+          :project_id => @@project.id,
+          :tracker => tracker,
+          :author => author,
+          :category => category,
+          :status => status
+      )
+    else
+      #using the issue found from subject, create a new note for the issue
+      ic = Iconv.new('UTF-8', 'UTF-8')
+      RAILS_DEFAULT_LOGGER.debug "Issue ##{issue.id} exists, adding comment by #{author.firstname}..."
+      journal = Journal.new(:notes => ic.iconv(email.body.split(/<(HTML|html)/)[0]),
+                     :journalized => issue,
+                     :user => author);
+      if(!journal.save)
+         RAILS_DEFAULT_LOGGER.debug "Failed to add comment"
+         return false
+      end
+    
+    end
     
     if email.has_attachments?
         for attachment in email.attachments        
