@@ -17,6 +17,8 @@
 
 require 'redmine'
 
+require File.dirname(__FILE__) + "/app/models/mail_reader"
+
 RAILS_DEFAULT_LOGGER.info 'Ticket Emailer Plugin'
 
 # Redmine ticket emailer plugin
