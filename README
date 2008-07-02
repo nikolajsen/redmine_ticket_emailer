@@ -17,7 +17,7 @@ In order to submit an issue, the Project keyword needs to be correct and the sen
 
 === Supported keywords
 
-Use any of the following keywords to create issues. If the plugin can't figure out what your value for the keyword means it will simply be ignored or defaulted. All keywords unless otherwise specified will only read in the same line of text the keyword is on, other text after that line will be ignored.
+Use any of the following keywords to create issues. If the plugin can't figure out what your value for the keyword means it will simply be ignored or defaulted. All keywords unless otherwise specified will only read in the same line of text the keyword is on, other text after that line will be ignored for that keyword.
 
 Note: Project must always be specified or the entire email will be ignored. All keywords and values are case sensitive (i.e. When specifying a tracker using "feature" will not result in the tracker being set to Feature.)
 
@@ -49,9 +49,9 @@ Priority: Urgent
 Tracker: Feature
 Category: My category
 Attachment: Description of file that is attached to email
-Description: I to update this new feature... (allows multiple lines)**
+Description: I want to update this new feature... (allows multiple lines)**
 
-* Only used to specify the containing project will not move issue to new project name.
+* Only used to specify the containing project, will not move an issue to a new project.
 ** Description is a greedy field, it will take all the text specified after it. No keywords will be recognized after the description field. 
 
 == Credits
