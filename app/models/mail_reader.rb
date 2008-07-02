@@ -4,8 +4,16 @@
 class MailReader < ActionMailer::Base
 
   def receive(email)
+    
+    html_body = email.body.split(/<(HTML|html)/)[0]
+    unless html_body.nil?
+      body = html_body
+    else
+      body = email.body
+    end
+    
     # find project
-    project_name = line_match(email.body, "Project", '')
+    project_name = line_match(body, "Project", '')
     @@project = Project.find_by_name project_name, :include => :enabled_modules , :conditions => "enabled_modules.name='ticket_emailer'"
     
     if @@project.nil?
@@ -15,29 +23,14 @@ class MailReader < ActionMailer::Base
     
     # If the email exists for a user in the current project,
     # use that user as the author.  Otherwise, abort
-    author = User.find_by_mail @@from_email, :select=>"users.id", :joins=>"inner join members on members.user_id = users.id",
+    author = User.find_by_mail @@from_email, :joins=>"inner join members on members.user_id = users.id",
                               :conditions=>["members.project_id=?", @@project.id]
     
     if author.nil?
-      RAILS_DEFAULT_LOGGER.debug "Author not found with the email of #{from_email}"
+      RAILS_DEFAULT_LOGGER.debug "Author not found with the email of #{@@from_email}"
       return false      
     end
     
-    status = IssueStatus.find_by_name(line_match(email.body, "Status", '')) || IssueStatus.default
-    
-    # TODO: Refactor priorities
-    priorities = Enumeration.get_values('IPRI')
-    @DEFAULT_PRIORITY = priorities[0]
-    @PRIORITY_MAPPING = {}
-    priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
-    priority = @PRIORITY_MAPPING[line_match(email.body, "Priority", '')] || @DEFAULT_PRIORITY
-    
-    # Tracker
-    @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
-    tracker = @@project.trackers.find_by_name(line_match(email.body, "Tracker", 'Bug')) || @DEFAULT_TRACKER
-
-    category = @@project.issue_categories.find_by_name(line_match(email.body, "Category", ''))
-
     #check if the email subject includes an issue id
     issue_id = email.subject.scan(/#(\d+)/).flatten
  
@@ -50,6 +43,34 @@ class MailReader < ActionMailer::Base
       end
     end
     
+    assigned_to = User.find_by_mail(line_match(body, "Assign", ''), :joins=>"inner join members on members.user_id = users.id", :conditions=>["members.project_id=?", @@project.id])
+                               
+    unless assigned_to.nil?
+      RAILS_DEFAULT_LOGGER.debug "Ticket assigned to #{assigned_to.mail}"
+    end
+    
+    # TODO: Refactor priorities
+    priorities = Enumeration.get_values('IPRI')
+    @DEFAULT_PRIORITY = priorities[0]
+    @PRIORITY_MAPPING = {}
+    priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
+    
+    @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
+    
+    #Find attributes and assign defaults if they don't exist for new issues.
+    if issue.nil?                     
+      status = IssueStatus.find_by_name(line_match(body, "Status", '')) || IssueStatus.default
+      priority = @PRIORITY_MAPPING[line_match(body, "Priority", '')] || @DEFAULT_PRIORITY
+      tracker = @@project.trackers.find_by_name(line_match(body, "Tracker", '')) || @DEFAULT_TRACKER
+    else
+      #Find attributes for existing issues.
+      status = IssueStatus.find_by_name(line_match(body, "Status", ''))
+      priority = @PRIORITY_MAPPING[line_match(body, "Priority", '')]
+      tracker = @@project.trackers.find_by_name(line_match(body, "Tracker", ''))
+    end
+    
+    category = @@project.issue_categories.find_by_name(line_match(body, "Category", ''))
+    
     if issue.nil?
        RAILS_DEFAULT_LOGGER.debug "Creating new issue"
       # TODO: Description is greedy and will take other keywords after itself.  e.g.
@@ -61,35 +82,72 @@ class MailReader < ActionMailer::Base
       #   Subject: Issue subject
       # #=> Description has 'Subject' in it
       issue = Issue.create(
-          :subject => line_match(email.body, "Subject", email.subject),
-          :description => block_match(email.body, "Description", ''),
-          :priority => priority,
+          :subject => line_match(body, "Subject", email.subject),
+          :description => block_match(body, "Description", ''),
+          :priority_id => priority.id,
           :project_id => @@project.id,
           :tracker => tracker,
-          :author => author,
+          :author_id => author.id,
+          :assigned_to_id => assigned_to.id,
           :category => category,
           :status => status
       )
+      Mailer.deliver_issue_add(issue) if Setting.notified_events.include?('issue_added')
     else
+
       #using the issue found from subject, create a new note for the issue
       ic = Iconv.new('UTF-8', 'UTF-8')
       RAILS_DEFAULT_LOGGER.debug "Issue ##{issue.id} exists adding comment"
-      journal = Journal.new(:notes => ic.iconv(email.body.split(/<(HTML|html)/)[0]),
+      journal = Journal.new(:notes => ic.iconv(block_match(body, "Description", '')),
                      :journalized => issue,
-                     :user => author);
+                     :user_id => author.id);
       if(!journal.save)
          RAILS_DEFAULT_LOGGER.debug "Failed to add comment"
          return false
       end
-    
+      
+      unless priority.nil?
+        unless issue.priority_id == priority.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'priority_id', :old_value => issue.priority_id, :value => priority.id)
+          issue.update_attributes(:priority_id => priority.id)
+        end
+      end
+      unless tracker.nil?
+        unless issue.tracker_id == tracker.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'tracker_id', :old_value => issue.tracker.name, :value => tracker.name)
+          issue.update_attributes(:tracker_id => tracker.id)
+        end
+      end
+      unless assigned_to.nil?
+        unless issue.assigned_to_id == assigned_to.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'assigned_to_id', :old_value => issue.assigned_to_id, :value => assigned_to.id)
+          issue.update_attributes(:assigned_to_id => assigned_to.id)
+        end
+      end
+      unless category.nil?
+        unless issue.category_id == category.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'category_id', :old_value => issue.category_id, :value => category.id)
+          issue.update_attributes(:category_id => category.id)
+        end
+      end
+      unless status.nil?
+        unless issue.status_id == status.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'status_id', :old_value => issue.status_id, :value => status.id)
+          issue.update_attributes(:status_id => status.id)
+        end
+      end
+      
+      Mailer.deliver_issue_edit(journal) if Setting.notified_events.include?('issue_updated')
+
     end
     
     if email.has_attachments?
         for attachment in email.attachments        
             Attachment.create(:container => issue, 
-                                  :file => attachment,
-                                  :description => "",
-                                  :author => author)
+                :file => attachment,
+                :description => line_match(body, "Attachment", ''),
+                :author => author
+            )
         end
     end
 
@@ -122,19 +180,6 @@ class MailReader < ActionMailer::Base
       # tell server to permanently remove all messages flagged as :Deleted
       imap.expunge()
     end
-  end
-  
-  def attach_files(obj, attachment)
-    attached = []
-    user = User.find 2
-    if attachment && attachment.is_a?(Hash)
-        file = attachment['file']
-            Attachment.create(:container => obj, 
-                                  :file => file,
-                                  :author => user)
-        attached << a unless a.new_record?
-    end
-    attached
   end
   
   def self.from_email_address(imap, msg_id) 
