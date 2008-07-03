@@ -43,8 +43,10 @@ class MailReader < ActionMailer::Base
       end
     end
     
-    assigned_to = User.find_by_mail(line_match(body, "Assign", ''), :joins=>"inner join members on members.user_id = users.id", :conditions=>["members.project_id=?", @@project.id])
-                               
+    assigned_email = line_match(body, "Assign", '')
+    unless assigned_email.nil?
+      assigned_to = User.find_by_mail(assigned_email, :joins=>"inner join members on members.user_id = users.id", :conditions=>["members.project_id=?", @@project.id])
+    end                           
     unless assigned_to.nil?
       RAILS_DEFAULT_LOGGER.debug "Ticket assigned to #{assigned_to.mail}"
     end
@@ -88,7 +90,7 @@ class MailReader < ActionMailer::Base
           :project_id => @@project.id,
           :tracker => tracker,
           :author_id => author.id,
-          :assigned_to_id => assigned_to.id,
+          :assigned_to => assigned_to,
           :category => category,
           :status => status
       )
