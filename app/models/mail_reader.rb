@@ -4,8 +4,16 @@
 class MailReader < ActionMailer::Base
 
   def receive(email)
+    
+    html_body = email.body.split(/<(HTML|html)/)[0]
+    unless html_body.nil?
+      body = html_body
+    else
+      body = email.body
+    end
+    
     # find project
-    project_name = line_match(email.body, "Project", '')
+    project_name = line_match(body, "Project", '')
     @@project = Project.find_by_name project_name, :include => :enabled_modules , :conditions => "enabled_modules.name='ticket_emailer'"
     
     if @@project.nil?
@@ -23,20 +31,23 @@ class MailReader < ActionMailer::Base
       return false      
     end
     
-    status = IssueStatus.find_by_name(line_match(email.body, "Status", '')) || IssueStatus.default
+    assigned_to = User.find_by_mail(line_match(body, "Assign", ''), :select=>"users.id", :joins=>"inner join members on members.user_id = users.id",
+                              :conditions=>["members.project_id=?", @@project.id]) || author
+                              
+    status = IssueStatus.find_by_name(line_match(body, "Status", '')) || IssueStatus.default
     
     # TODO: Refactor priorities
     priorities = Enumeration.get_values('IPRI')
     @DEFAULT_PRIORITY = priorities[0]
     @PRIORITY_MAPPING = {}
     priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
-    priority = @PRIORITY_MAPPING[line_match(email.body, "Priority", '')] || @DEFAULT_PRIORITY
+    priority = @PRIORITY_MAPPING[line_match(body, "Priority", '')] || @DEFAULT_PRIORITY
     
     # Tracker
     @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
-    tracker = @@project.trackers.find_by_name(line_match(email.body, "Tracker", 'Bug')) || @DEFAULT_TRACKER
+    tracker = @@project.trackers.find_by_name(line_match(body, "Tracker", 'Bug')) || @DEFAULT_TRACKER
 
-    category = @@project.issue_categories.find_by_name(line_match(email.body, "Category", ''))
+    category = @@project.issue_categories.find_by_name(line_match(body, "Category", ''))
 
     #check if the email subject includes an issue id
     issue_id = email.subject.scan(/#(\d+)/).flatten
@@ -61,12 +72,13 @@ class MailReader < ActionMailer::Base
       #   Subject: Issue subject
       # #=> Description has 'Subject' in it
       issue = Issue.create(
-          :subject => line_match(email.body, "Subject", email.subject),
-          :description => block_match(email.body, "Description", ''),
+          :subject => line_match(body, "Subject", email.subject),
+          :description => block_match(body, "Description", ''),
           :priority => priority,
           :project_id => @@project.id,
           :tracker => tracker,
           :author => author,
+          :assigned_to_id => assigned_to,
           :category => category,
           :status => status
       )
@@ -74,7 +86,7 @@ class MailReader < ActionMailer::Base
       #using the issue found from subject, create a new note for the issue
       ic = Iconv.new('UTF-8', 'UTF-8')
       RAILS_DEFAULT_LOGGER.debug "Issue ##{issue.id} exists adding comment"
-      journal = Journal.new(:notes => ic.iconv(email.body.split(/<(HTML|html)/)[0]),
+      journal = Journal.new(:notes => ic.iconv(block_match(body, "Comment", '')),
                      :journalized => issue,
                      :user => author);
       if(!journal.save)
@@ -88,7 +100,7 @@ class MailReader < ActionMailer::Base
         for attachment in email.attachments        
             Attachment.create(:container => issue, 
                                   :file => attachment,
-                                  :description => "",
+                                  :description => line_match(body, "Attachment", ''),
                                   :author => author)
         end
     end
@@ -106,22 +118,25 @@ class MailReader < ActionMailer::Base
      @@config_path = (RAILS_ROOT + '/config/emailer.yml')
      
     # Load the configuration file
-    @@config = YAML.load_file(@@config_path).symbolize_keys
-    imap = Net::IMAP.new(@@config[:email_server], port=@@config[:email_port], usessl=@@config[:use_ssl])
-             
-    imap.login(@@config[:email_login], @@config[:email_password])
-    imap.select(@@config[:email_folder])  
-                     
-    imap.search(['ALL']).each do |message_id|
-      RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
-      msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
-      @@from_email = from_email_address(imap, message_id)
-      MailReader.receive(msg)          
-      #Mark message as deleted and it will be removed from storage when user session closd
-      imap.store(message_id, "+FLAGS", [:Deleted])
-      # tell server to permanently remove all messages flagged as :Deleted
-      imap.expunge()
-    end
+    @@config = YAML.load_file(@@config_path)
+    
+    for num in (1..@@config['num_email_servers'])
+       imap = Net::IMAP.new(@@config["email_server#{num}"], port=@@config["email_port#{num}"], usessl=@@config["use_ssl#{num}"])
+
+       imap.login(@@config["email_login#{num}"], @@config["email_password#{num}"])
+       imap.select(@@config["email_folder#{num}"])  
+
+       imap.search(['ALL']).each do |message_id|
+         RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
+         msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
+         @@from_email = from_email_address(imap, message_id)
+         MailReader.receive(msg)          
+         #Mark message as deleted and it will be removed from storage when user session closd
+         imap.store(message_id, "+FLAGS", [:Deleted])
+         # tell server to permanently remove all messages flagged as :Deleted
+         imap.expunge()
+       end
+     end
   end
   
   def attach_files(obj, attachment)

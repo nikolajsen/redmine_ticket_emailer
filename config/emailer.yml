@@ -1,18 +1,29 @@
 # Emailer Configuration Parameters
 #
-# email_server -- The email server name;  This plugin currently only supports IMAP;  e.g. imap.gmail.com
-# email_login -- The login name of the user which this tool will use to retrieve emails;
-# email_password -- The password of the above login
-# email_port -- The port the email server uses;  (Gmail uses port 993)
-# email_folder -- The folder name you would like your email messages retrieved from;
-# use_ssl -- If your email server requires you to use ssl to retrieve messages;
+# num_email_servers -- If you have more than one email server to check specify a the number here, otherwise keep it at 1.
+#
+# Num should be replaced to the same number per email server. See below for an example.
+# email_server"num" -- The email server name;  This plugin currently only supports IMAP;  e.g. imap.gmail.com
+# email_login"num" -- The login name of the user which this tool will use to retrieve emails;
+# email_password"num" -- The password of the above login
+# email_port"num" -- The port the email server uses;  (Gmail uses port 993)
+# email_folder"num" -- The folder name you would like your email messages retrieved from;
+# use_ssl"num" -- If your email server requires you to use ssl to retrieve messages;
 #
 # THIS IS AN EXAMPLE.  REPLACE THIS WITH YOUR REAL SERVER DATA AND COPY TO: {RAILS_ROOT}/config DIRECTORY
 # OF YOUR CORE REDMINE PROJECT.
+num_email_servers: 2
 
-email_server: imap.gmail.com
-email_login: email_user@example.cc
-email_password: my_password
-email_port: 993
-email_folder: support_issues
-use_ssl: true
+email_server1: imap.gmail.com
+email_login1: email_user@example.cc
+email_password1: my_password
+email_port1: 993
+email_folder1: support_issues
+use_ssl1: true
+
+email_server2: imap.yahoo.com
+email_login2: email_user2@example.cc
+email_password2: my_password
+email_port2: 993
+email_folder2: support_issues
+use_ssl2: true
