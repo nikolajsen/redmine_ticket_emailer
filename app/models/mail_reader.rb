@@ -23,32 +23,13 @@ class MailReader < ActionMailer::Base
     
     # If the email exists for a user in the current project,
     # use that user as the author.  Otherwise, abort
-    author = User.find_by_mail @@from_email, :select=>"users.id", :joins=>"inner join members on members.user_id = users.id",
-                              :conditions=>["members.project_id=?", @@project.id]
-    
+    author = User.find(:first, :conditions => { :mail => @@from_email, "members.project_id" => @@project.id }, :select=>"users.id", :joins=>"inner join members on members.user_id = users.id")
+        
     if author.nil?
-      RAILS_DEFAULT_LOGGER.debug "Author not found with the email of #{from_email}"
+      RAILS_DEFAULT_LOGGER.debug "Author not found with the email of #{@@from_email}"
       return false      
     end
     
-    assigned_to = User.find_by_mail(line_match(body, "Assign", ''), :select=>"users.id", :joins=>"inner join members on members.user_id = users.id",
-                              :conditions=>["members.project_id=?", @@project.id]) || author
-                              
-    status = IssueStatus.find_by_name(line_match(body, "Status", '')) || IssueStatus.default
-    
-    # TODO: Refactor priorities
-    priorities = Enumeration.get_values('IPRI')
-    @DEFAULT_PRIORITY = priorities[0]
-    @PRIORITY_MAPPING = {}
-    priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
-    priority = @PRIORITY_MAPPING[line_match(body, "Priority", '')] || @DEFAULT_PRIORITY
-    
-    # Tracker
-    @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
-    tracker = @@project.trackers.find_by_name(line_match(body, "Tracker", 'Bug')) || @DEFAULT_TRACKER
-
-    category = @@project.issue_categories.find_by_name(line_match(body, "Category", ''))
-
     #check if the email subject includes an issue id
     issue_id = email.subject.scan(/#(\d+)/).flatten
  
@@ -60,6 +41,36 @@ class MailReader < ActionMailer::Base
         RAILS_DEFAULT_LOGGER.debug "Issue #{issue_id[0]} not found"
       end
     end
+    
+    assigned_email = line_match(body, "Assign", '')
+    unless assigned_email.nil?
+      assigned_to = User.find(:first, :conditions => { :mail => assigned_email, "members.project_id" => @@project.id }, :joins=>"inner join members on members.user_id = users.id")
+    end                           
+    unless assigned_to.nil?
+      RAILS_DEFAULT_LOGGER.debug "Ticket assigned to #{assigned_to.mail}"
+    end
+    
+    # TODO: Refactor priorities
+    priorities = Enumeration.get_values('IPRI')
+    @DEFAULT_PRIORITY = priorities[0]
+    @PRIORITY_MAPPING = {}
+    priorities.each { |prio| @PRIORITY_MAPPING[prio.name] = prio }
+    
+    @DEFAULT_TRACKER = @@project.trackers.find_by_position(1) || Tracker.find_by_position(1)
+    
+    #Find attributes and assign defaults if they don't exist for new issues.
+    if issue.nil?                     
+      status = IssueStatus.find_by_name(line_match(body, "Status", '')) || IssueStatus.default
+      priority = @PRIORITY_MAPPING[line_match(body, "Priority", '')] || @DEFAULT_PRIORITY
+      tracker = @@project.trackers.find_by_name(line_match(body, "Tracker", '')) || @DEFAULT_TRACKER
+    else
+      #Find attributes for existing issues.
+      status = IssueStatus.find_by_name(line_match(body, "Status", ''))
+      priority = @PRIORITY_MAPPING[line_match(body, "Priority", '')]
+      tracker = @@project.trackers.find_by_name(line_match(body, "Tracker", ''))
+    end
+    
+    category = @@project.issue_categories.find_by_name(line_match(body, "Category", ''))
     
     if issue.nil?
        RAILS_DEFAULT_LOGGER.debug "Creating new issue"
@@ -74,34 +85,70 @@ class MailReader < ActionMailer::Base
       issue = Issue.create(
           :subject => line_match(body, "Subject", email.subject),
           :description => block_match(body, "Description", ''),
-          :priority => priority,
+          :priority_id => priority.id,
           :project_id => @@project.id,
           :tracker => tracker,
-          :author => author,
-          :assigned_to_id => assigned_to,
+          :author_id => author.id,
+          :assigned_to => assigned_to,
           :category => category,
           :status => status
       )
+      Mailer.deliver_issue_add(issue) if Setting.notified_events.include?('issue_added')
     else
+
       #using the issue found from subject, create a new note for the issue
       ic = Iconv.new('UTF-8', 'UTF-8')
       RAILS_DEFAULT_LOGGER.debug "Issue ##{issue.id} exists adding comment"
-      journal = Journal.new(:notes => ic.iconv(block_match(body, "Comment", '')),
+      journal = Journal.new(:notes => ic.iconv(block_match(body, "Description", '')),
                      :journalized => issue,
-                     :user => author);
+                     :user_id => author.id);
       if(!journal.save)
          RAILS_DEFAULT_LOGGER.debug "Failed to add comment"
          return false
       end
-    
+      
+      unless priority.nil?
+        unless issue.priority_id == priority.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'priority_id', :old_value => issue.priority_id, :value => priority.id)
+          issue.update_attributes(:priority_id => priority.id)
+        end
+      end
+      unless tracker.nil?
+        unless issue.tracker_id == tracker.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'tracker_id', :old_value => issue.tracker.name, :value => tracker.name)
+          issue.update_attributes(:tracker_id => tracker.id)
+        end
+      end
+      unless assigned_to.nil?
+        unless issue.assigned_to_id == assigned_to.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'assigned_to_id', :old_value => issue.assigned_to_id, :value => assigned_to.id)
+          issue.update_attributes(:assigned_to_id => assigned_to.id)
+        end
+      end
+      unless category.nil?
+        unless issue.category_id == category.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'category_id', :old_value => issue.category_id, :value => category.id)
+          issue.update_attributes(:category_id => category.id)
+        end
+      end
+      unless status.nil?
+        unless issue.status_id == status.id
+          JournalDetail.create(:journal_id => journal.id, :property => 'attr', :prop_key => 'status_id', :old_value => issue.status_id, :value => status.id)
+          issue.update_attributes(:status_id => status.id)
+        end
+      end
+      
+      Mailer.deliver_issue_edit(journal) if Setting.notified_events.include?('issue_updated')
+
     end
     
     if email.has_attachments?
         for attachment in email.attachments        
             Attachment.create(:container => issue, 
-                                  :file => attachment,
-                                  :description => line_match(body, "Attachment", ''),
-                                  :author => author)
+                :file => attachment,
+                :description => line_match(body, "Attachment", ''),
+                :author => author
+            )
         end
     end
 
@@ -137,19 +184,22 @@ class MailReader < ActionMailer::Base
          imap.expunge()
        end
      end
-  end
-  
-  def attach_files(obj, attachment)
-    attached = []
-    user = User.find 2
-    if attachment && attachment.is_a?(Hash)
-        file = attachment['file']
-            Attachment.create(:container => obj, 
-                                  :file => file,
-                                  :author => user)
-        attached << a unless a.new_record?
-    end
-    attached
+     
+    #imap = Net::IMAP.new(@@config[:email_server], port=@@config[:email_port], usessl=@@config[:use_ssl])
+             
+    #imap.login(@@config[:email_login], @@config[:email_password])
+    #imap.select(@@config[:email_folder])  
+                     
+ #   imap.search(['ALL']).each do |message_id|
+#      RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
+#      msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
+#      @@from_email = from_email_address(imap, message_id)
+#      MailReader.receive(msg)          
+#      #Mark message as deleted and it will be removed from storage when user session closd
+#      imap.store(message_id, "+FLAGS", [:Deleted])
+#      # tell server to permanently remove all messages flagged as :Deleted
+#      imap.expunge()
+#    end
   end
   
   def self.from_email_address(imap, msg_id) 
