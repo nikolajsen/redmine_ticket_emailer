@@ -9,19 +9,55 @@ A plugin to allow users to email new tickets / issues to Redmine's issue trackin
 
 == Submitting an issue
 
-In order to submit an issue, the Project keyword needs to be correct and the sender must be a member of the project (based on email address).
+Ensure the project you are submitting to has the "Ticket emailer" module enabled.
 
-== Supported keywords
+=== Structure of email
 
-* Project => My Project Name
-* Status => Resolved
-* Priority => Urgent
-* Tracker => Feature
-* Category => My category
-* Description (allows multiple lines) => I want this new feature...
+In order to submit an issue, the Project keyword needs to be correct and the sender must be a member of the project (based on "From:" email address).
+
+=== Supported keywords
+
+Use any of the following keywords to create issues. If the plugin can't figure out what your value for the keyword means it will simply be ignored or defaulted. All keywords unless otherwise specified will only read in the same line of text the keyword is on, other text after that line will be ignored for that keyword.
+
+Note: Project must always be specified or the entire email will be ignored. All keywords and values are case sensitive (i.e. When specifying a tracker using "feature" will not result in the tracker being set to Feature.)
+
+Project: Valid Project Name
+Assign: email_of@valid_user.com
+Status: Resolved
+Priority: Urgent
+Tracker: Feature
+Category: My category
+Attachment: Description of file that is attached to email
+Description: I want this new feature... (allows multiple lines)**
+
+** Description is a greedy field, it will take all the text specified after it. No keywords will be recognized after the description field. 
+
+== Updating/Commenting Issues
+
+Ensure the project you are submitting to has the "Ticket emailer" module enabled.
+
+=== Structure of email
+
+The subject of the email must contain #{number of the issue}, ex. "Re: Ticket #123"
+
+=== Supported keywords
+
+Project: Valid Project Name*
+Assign: email_of@valid_user.com
+Status: Resolved
+Priority: Urgent
+Tracker: Feature
+Category: My category
+Attachment: Description of file that is attached to email
+Description: I want to update this new feature... (allows multiple lines)**
+
+* Only used to specify the containing project, will not move an issue to a new project.
+** Description is a greedy field, it will take all the text specified after it. No keywords will be recognized after the description field. 
 
 == Credits
 
 mully (http://github.com/mully) - Author of ticker_emailer
 Carl Nygard (http://www.redmine.org/issues/show/1110) - Author of bugmail.rb
 Eric Davis (http://www.littlestreamsoftware.com) - Merged ticket_emailer plugin with bugmail.rb
+Mark Gallop (http://github.com/rollick) - Author of forked version of mully's ticket_emailer
+Ben Allen (http://github.org/unilogic) - Merged Eric Davis and Mark Gallop's versions of Ticket emailer plugin, and added more ability to update issues

@@ -24,7 +24,7 @@ class MailReader < ActionMailer::Base
     # If the email exists for a user in the current project,
     # use that user as the author.  Otherwise, abort
     author = User.find(:first, :conditions => { :mail => @@from_email, "members.project_id" => @@project.id }, :select=>"users.id", :joins=>"inner join members on members.user_id = users.id")
-        
+
     if author.nil?
       RAILS_DEFAULT_LOGGER.debug "Author not found with the email of #{@@from_email}"
       return false      
@@ -184,22 +184,6 @@ class MailReader < ActionMailer::Base
          imap.expunge()
        end
      end
-     
-    #imap = Net::IMAP.new(@@config[:email_server], port=@@config[:email_port], usessl=@@config[:use_ssl])
-             
-    #imap.login(@@config[:email_login], @@config[:email_password])
-    #imap.select(@@config[:email_folder])  
-                     
- #   imap.search(['ALL']).each do |message_id|
-#      RAILS_DEFAULT_LOGGER.debug "Receiving message #{message_id}"
-#      msg = imap.fetch(message_id,'RFC822')[0].attr['RFC822']
-#      @@from_email = from_email_address(imap, message_id)
-#      MailReader.receive(msg)          
-#      #Mark message as deleted and it will be removed from storage when user session closd
-#      imap.store(message_id, "+FLAGS", [:Deleted])
-#      # tell server to permanently remove all messages flagged as :Deleted
-#      imap.expunge()
-#    end
   end
   
   def self.from_email_address(imap, msg_id) 
